@@ -231,17 +231,18 @@ def assign_points_to_polygons(points_df, polygons_df):
     return points_df
     
 def export_to_kml(polygons_df, points_df):
-    """Экспортирует полигоны и точки в один KML файл с цветовой кодировкой"""
+    """Экспортирует полигоны и точки в один KML файл"""
     try:
-        POLYGON_COLORS = {
-            1: {"fill": "3366cc", "line": "1a33cc", "fill_hex": "#3366cc", "name": "Синий"},
-            2: {"fill": "ff9933", "line": "cc7a00", "fill_hex": "#ff9933", "name": "Оранжевый"},
-            3: {"fill": "33cc33", "line": "28a028", "fill_hex": "#33cc33", "name": "Зеленый"},
-            4: {"fill": "9933cc", "line": "7a28a0", "fill_hex": "#9933cc", "name": "Фиолетовый"},
-            5: {"fill": "ffcc00", "line": "cca300", "fill_hex": "#ffcc00", "name": "Желтый"},
-            6: {"fill": "ff3333", "line": "cc2929", "fill_hex": "#ff3333", "name": "Красный"},
-            7: {"fill": "33cccc", "line": "29a3a3", "fill_hex": "#33cccc", "name": "Голубой"},
-            8: {"fill": "cc9966", "line": "a37a4d", "fill_hex": "#cc9966", "name": "Коричневый"},
+        # Цвета для точек (номер полигона -> цвет)
+        COLORS = {
+            1: {"icon0": "blue", "icon1": "darkblue", "name": "Синий"},
+            2: {"icon0": "orange", "icon1": "darkorange", "name": "Оранжевый"},
+            3: {"icon0": "green", "icon1": "darkgreen", "name": "Зеленый"},
+            4: {"icon0": "purple", "icon1": "darkpurple", "name": "Фиолетовый"},
+            5: {"icon0": "yellow", "icon1": "gold", "name": "Желтый"},
+            6: {"icon0": "red", "icon1": "darkred", "name": "Красный"},
+            7: {"icon0": "ltblue", "icon1": "blue", "name": "Голубой"},
+            8: {"icon0": "pink", "icon1": "darkpink", "name": "Розовый"},
         }
         
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -251,31 +252,30 @@ def export_to_kml(polygons_df, points_df):
 '''
         
         kml_styles = ""
-        for num, colors in POLYGON_COLORS.items():
+        for num, c in COLORS.items():
             kml_styles += f'''
 <Style id="polygon_{num}">
-    <LineStyle><color>ff{colors["line"]}</color><width>3</width></LineStyle>
-    <PolyStyle><color>66{colors["fill"]}</color><fill>1</fill><outline>1</outline></PolyStyle>
+    <LineStyle><color>ff666666</color><width>2</width></LineStyle>
+    <PolyStyle><color>66{num}0000</color><fill>1</fill><outline>1</outline></PolyStyle>
 </Style>
 <Style id="point_fact0_{num}">
     <IconStyle>
-        <color>cc{colors["fill"]}</color>
-        <scale>1.0</scale>
+        <scale>0.8</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+            <href>http://maps.google.com/mapfiles/kml/pushpin/{c["icon0"]}-pushpin.png</href>
         </Icon>
     </IconStyle>
 </Style>
 <Style id="point_fact1_{num}">
     <IconStyle>
-        <color>33{colors["fill"]}</color>
-        <scale>1.0</scale>
+        <scale>0.8</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+            <href>http://maps.google.com/mapfiles/kml/pushpin/{c["icon1"]}-pushpin.png</href>
         </Icon>
     </IconStyle>
 </Style>
-'''     
+'''
+        
         kml_body = ""
         
         # Полигоны
@@ -318,7 +318,7 @@ def export_to_kml(polygons_df, points_df):
             else:
                 color_num = 1
             
-            style = f"point_fact1_{color_num}" if fact == 1 else f"point_fact0_{color_num}"
+            style = f"point_fact{fact}_{color_num}"
             status = "✅ Посещено" if fact == 1 else "❌ Не посещено"
             clean_polygon = polygon.replace(' (ближайший)', '')
             
