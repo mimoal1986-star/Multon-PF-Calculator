@@ -275,7 +275,7 @@ def export_to_kml(polygons_df, points_df):
         </Icon>
     </IconStyle>
 </Style>
-        
+'''     
         kml_body = ""
         
         # Полигоны
