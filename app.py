@@ -227,89 +227,67 @@ def assign_points_to_polygons(points_df, polygons_df):
     return points_df
     
 def export_to_kml(polygons_df, points_df):
-    """Экспортирует только точки в KML файл (без полигонов)"""
+    """Экспортирует только цветные полигоны в KML файл (без точек)"""
     try:
-        # Цвета для точек в формате KML (AABBGGRR)
-        # AA = прозрачность: CC=80% (светлый), 66=60% (темный)
-        COLORS = {
-            1: {"light": "cc66ff66", "dark": "6633cc33", "name": "Красно-розовый"},
-            2: {"light": "cc66cc66", "dark": "66339933", "name": "Зеленый"},
-            3: {"light": "ccff6666", "dark": "66cc3333", "name": "Синий"},
-            4: {"light": "cc66ccff", "dark": "663399cc", "name": "Оранжевый"},
-            5: {"light": "ccff66cc", "dark": "66cc3399", "name": "Фиолетовый"},
-            6: {"light": "cccccc66", "dark": "66999933", "name": "Бирюзовый"},
-            7: {"light": "cccc99ff", "dark": "669966cc", "name": "Розовый"},
-            8: {"light": "cc66cccc", "dark": "66339999", "name": "Оливковый"},
-        }
+        # Цвета для полигонов
+        POLY_COLORS = [
+            {"line": "ff0000ff", "fill": "400000ff", "name": "Красный"},
+            {"line": "ff00ff00", "fill": "4000ff00", "name": "Зеленый"},
+            {"line": "ff0000ff", "fill": "400000ff", "name": "Синий"},
+            {"line": "ffffff00", "fill": "40ffff00", "name": "Желтый"},
+            {"line": "ffff00ff", "fill": "40ff00ff", "name": "Фиолетовый"},
+            {"line": "ff00ffff", "fill": "4000ffff", "name": "Голубой"},
+            {"line": "ffff6600", "fill": "40ff6600", "name": "Оранжевый"},
+            {"line": "ffff66cc", "fill": "40ff66cc", "name": "Розовый"},
+        ]
         
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
-<name>Точки по полигонам</name>
-'''
-        
-        kml_styles = ""
-        for num, c in COLORS.items():
-            # Светлая точка (факт=0)
-            kml_styles += f'''
-<Style id="point_fact0_{num}">
-    <IconStyle>
-        <color>{c["light"]}</color>
-        <scale>0.9</scale>
-        <Icon>
-            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
-        </Icon>
-    </IconStyle>
-</Style>
-'''
-            # Темная точка (факт=1)
-            kml_styles += f'''
-<Style id="point_fact1_{num}">
-    <IconStyle>
-        <color>{c["dark"]}</color>
-        <scale>0.9</scale>
-        <Icon>
-            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
-        </Icon>
-    </IconStyle>
-</Style>
+<name>Полигоны</name>
 '''
         
         kml_body = ""
+        color_idx = 0
         
-        for _, point in points_df.iterrows():
-            lat = point['Широта']
-            lon = point['Долгота']
-            fact = point['Факт']
-            polygon = str(point['Полигон'])
+        # Только полигоны
+        for idx, row in polygons_df.iterrows():
+            coords = row['coordinates']
+            if not coords or len(coords) < 3:
+                continue
             
-            import re
-            match = re.search(r'(\d+)', polygon)
-            if match:
-                color_num = ((int(match.group(1)) - 1) % 8) + 1
-            else:
-                color_num = 1
+            # Берем цвет по очереди
+            color = POLY_COLORS[color_idx % len(POLY_COLORS)]
+            color_idx += 1
             
-            style = f"point_fact{fact}_{color_num}"
-            status = "✅ Посещено" if fact == 1 else "❌ Не посещено"
-            clean_polygon = polygon.replace(' (ближайший)', '')
-            color_name = COLORS[color_num]["name"]
+            # Формируем строку координат
+            coord_string = ""
+            for lat, lon in coords:
+                coord_string += f"{lon},{lat},0\n"
+            first_lat, first_lon = coords[0]
+            coord_string += f"{first_lon},{first_lat},0"
             
             kml_body += f'''
 <Placemark>
-    <name>{point.get('Название_Точки', point['ID_Точки'])}</name>
-    <description>ID: {point['ID_Точки']}
-Адрес: {point.get('Адрес', '')}
-Полигон: {clean_polygon}
-Цвет: {color_name}
-Статус: {status}</description>
-    <styleUrl>#{style}</styleUrl>
-    <Point><coordinates>{lon},{lat},0</coordinates></Point>
+    <name>{row['name']}</name>
+    <description>Город: {row['city']}
+Цвет: {color["name"]}</description>
+    <Style>
+        <LineStyle><color>{color["line"]}</color><width>3</width></LineStyle>
+        <PolyStyle><color>{color["fill"]}</color><fill>1</fill><outline>1</outline></PolyStyle>
+    </Style>
+    <Polygon>
+        <outerBoundaryIs>
+            <LinearRing>
+                <coordinates>{coord_string}</coordinates>
+            </LinearRing>
+        </outerBoundaryIs>
+    </Polygon>
 </Placemark>
 '''
         
         kml_footer = '</Document>\n</kml>'
-        return kml_header + kml_styles + kml_body + kml_footer
+        return kml_header + kml_body + kml_footer
     except Exception as e:
         st.error(f"❌ Ошибка создания KML: {str(e)}")
         return None
