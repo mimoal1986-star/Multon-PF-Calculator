@@ -233,16 +233,16 @@ def assign_points_to_polygons(points_df, polygons_df):
 def export_to_kml(polygons_df, points_df):
     """Экспортирует полигоны и точки в один KML файл"""
     try:
-        # Цвета для точек (номер полигона -> цвет)
+        # Цвета для полигонов и булавок (номер -> цвета)
         COLORS = {
-            1: {"icon0": "blue", "icon1": "darkblue", "name": "Синий"},
-            2: {"icon0": "orange", "icon1": "darkorange", "name": "Оранжевый"},
-            3: {"icon0": "green", "icon1": "darkgreen", "name": "Зеленый"},
-            4: {"icon0": "purple", "icon1": "darkpurple", "name": "Фиолетовый"},
-            5: {"icon0": "yellow", "icon1": "gold", "name": "Желтый"},
-            6: {"icon0": "red", "icon1": "darkred", "name": "Красный"},
-            7: {"icon0": "ltblue", "icon1": "blue", "name": "Голубой"},
-            8: {"icon0": "pink", "icon1": "darkpink", "name": "Розовый"},
+            1: {"fill": "3366cc", "line": "1a33cc", "icon0": "blue", "icon1": "darkblue", "name": "Синий"},
+            2: {"fill": "ff9933", "line": "cc7a00", "icon0": "orange", "icon1": "darkorange", "name": "Оранжевый"},
+            3: {"fill": "33cc33", "line": "28a028", "icon0": "grn", "icon1": "darkgreen", "name": "Зеленый"},
+            4: {"fill": "9933cc", "line": "7a28a0", "icon0": "purple", "icon1": "darkpurple", "name": "Фиолетовый"},
+            5: {"fill": "ffcc00", "line": "cca300", "icon0": "ylw", "icon1": "gold", "name": "Желтый"},
+            6: {"fill": "ff3333", "line": "cc2929", "icon0": "red", "icon1": "darkred", "name": "Красный"},
+            7: {"fill": "33cccc", "line": "29a3a3", "icon0": "ltblu", "icon1": "blue", "name": "Голубой"},
+            8: {"fill": "cc9966", "line": "a37a4d", "icon0": "pink", "icon1": "darkpink", "name": "Розовый"},
         }
         
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -255,8 +255,8 @@ def export_to_kml(polygons_df, points_df):
         for num, c in COLORS.items():
             kml_styles += f'''
 <Style id="polygon_{num}">
-    <LineStyle><color>ff666666</color><width>2</width></LineStyle>
-    <PolyStyle><color>66{num}0000</color><fill>1</fill><outline>1</outline></PolyStyle>
+    <LineStyle><color>ff{c["line"]}</color><width>3</width></LineStyle>
+    <PolyStyle><color>66{c["fill"]}</color><fill>1</fill><outline>1</outline></PolyStyle>
 </Style>
 <Style id="point_fact0_{num}">
     <IconStyle>
