@@ -86,18 +86,36 @@ def calculate_polygon_center(polygon_coords):
     lons = [p[1] for p in polygon_coords]
     return sum(lats)/len(lats), sum(lons)/len(lons)
 
+# Словарь городов с гибкими диапазонами
+CITIES = {
+    "Москва": (55.75, 37.62, 0.35, 0.45),
+    "Санкт-Петербург": (59.93, 30.31, 0.40, 0.70),
+    "Новосибирск": (55.03, 82.92, 0.45, 0.30),
+    "Екатеринбург": (56.84, 60.65, 0.30, 0.35),
+    "Казань": (55.79, 49.11, 0.25, 0.30),
+    "Нижний Новгород": (56.33, 44.01, 0.30, 0.40),
+    "Челябинск": (55.15, 61.43, 0.25, 0.30),
+    "Самара": (53.20, 50.20, 0.25, 0.40),
+    "Омск": (54.98, 73.37, 0.25, 0.30),
+    "Ростов-на-Дону": (47.22, 39.72, 0.25, 0.30),
+    "Уфа": (54.73, 55.97, 0.25, 0.30),
+    "Красноярск": (56.01, 92.87, 0.30, 0.40),
+    "Пермь": (58.01, 56.25, 0.35, 0.25),
+    "Воронеж": (51.67, 39.21, 0.25, 0.25),
+    "Волгоград": (48.71, 44.51, 0.45, 0.45),
+    "Краснодар": (45.04, 38.98, 0.20, 0.20),
+}
+
 def get_city_by_coords(lat, lon):
-    """Город по координатам"""
+    """Определяет город по координатам"""
     if lat is None or lon is None:
         return "Другой"
-    if 55.5 <= lat <= 56.0 and 37.3 <= lon <= 38.0:
-        return "Москва"
-    if 59.8 <= lat <= 60.1 and 30.2 <= lon <= 30.5:
-        return "Санкт-Петербург"
-    if 54.9 <= lat <= 55.2 and 82.9 <= lon <= 83.1:
-        return "Новосибирск"
-    if 56.8 <= lat <= 56.9 and 60.5 <= lon <= 60.7:
-        return "Екатеринбург"
+    
+    for city, (center_lat, center_lon, radius_lat, radius_lon) in CITIES.items():
+        # Проверяем попадание в эллипс
+        if abs(lat - center_lat) <= radius_lat and abs(lon - center_lon) <= radius_lon:
+            return city
+    
     return "Другой"
 
 def load_polygons_from_csv(file):
@@ -290,8 +308,8 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         result['Факт'] = result['ID_Точки'].astype(str).str.strip().map(fact_dict).fillna(0).astype(int)
         
         # Итоговый DataFrame
-        result = result[['ID_Точки', 'Название_Точки', 'Адрес', 'Широта', 'Долгота', 'Город', 'Тип', 'Полигон', 'Факт']]
-        st.session_state.result_df = result
+        result_final = result[['ID_Точки', 'Название_Точки', 'Адрес', 'Широта', 'Долгота', 'Город', 'Тип', 'Полигон', 'Факт']]
+        st.session_state.result_df = result_final
         
         st.success("✅ Расчет завершен!")
         
@@ -299,8 +317,8 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         st.markdown("---")
         st.subheader("📊 Статистика по полигонам")
         
-        clean_poly = result['Полигон'].str.replace(r'\s*\(ближайший\)', '', regex=True)
-        stats = result.groupby(clean_poly).agg(
+        clean_poly = result_final['Полигон'].str.replace(r'\s*\(ближайший\)', '', regex=True)
+        stats = result_final.groupby(clean_poly).agg(
             План=('ID_Точки', 'count'),
             Факт=('Факт', 'sum')
         ).reset_index()
