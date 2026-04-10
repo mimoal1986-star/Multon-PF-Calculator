@@ -230,71 +230,103 @@ def assign_points_to_polygons(points_df, polygons_df):
     st.info(f"📌 Внутри полигонов: {assigned_cnt}, по расстоянию: {nearest_cnt}")
     return points_df
     
-def export_polygons_to_kml(polygons_df, filename="polygons.kml"):
-    """Экспортирует полигоны в KML формат для Google Earth"""
+def export_to_kml(polygons_df, points_df):
+    """Экспортирует полигоны и точки в один KML файл с цветовой кодировкой"""
     try:
+        POLYGON_COLORS = {
+            1: {"fill": "3366cc", "line": "1a33cc", "fill_hex": "#3366cc", "name": "Синий"},
+            2: {"fill": "ff9933", "line": "cc7a00", "fill_hex": "#ff9933", "name": "Оранжевый"},
+            3: {"fill": "33cc33", "line": "28a028", "fill_hex": "#33cc33", "name": "Зеленый"},
+            4: {"fill": "9933cc", "line": "7a28a0", "fill_hex": "#9933cc", "name": "Фиолетовый"},
+            5: {"fill": "ffcc00", "line": "cca300", "fill_hex": "#ffcc00", "name": "Желтый"},
+            6: {"fill": "ff3333", "line": "cc2929", "fill_hex": "#ff3333", "name": "Красный"},
+            7: {"fill": "33cccc", "line": "29a3a3", "fill_hex": "#33cccc", "name": "Голубой"},
+            8: {"fill": "cc9966", "line": "a37a4d", "fill_hex": "#cc9966", "name": "Коричневый"},
+        }
+        
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
-<name>Полигоны аудиторов</name>
-<style id="polygonStyle">
-    <LineStyle>
-        <color>ff0000ff</color>
-        <width>3</width>
-    </LineStyle>
-    <PolyStyle>
-        <color>400000ff</color>
-        <fill>1</fill>
-        <outline>1</outline>
-    </PolyStyle>
-</style>
+<name>Полигоны и точки</name>
+'''
+        
+        kml_styles = ""
+        for num, colors in POLYGON_COLORS.items():
+            kml_styles += f'''
+<Style id="polygon_{num}">
+    <LineStyle><color>ff{colors["line"]}</color><width>3</width></LineStyle>
+    <PolyStyle><color>66{colors["fill"]}</color><fill>1</fill><outline>1</outline></PolyStyle>
+</Style>
+<Style id="point_fact0_{num}">
+    <IconStyle><color>cc{colors["fill"]}</color><scale>0.8</scale>
+    <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle>
+</Style>
+<Style id="point_fact1_{num}">
+    <IconStyle><color>33{colors["fill"]}</color><scale>0.8</scale>
+    <Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle>
+</Style>
 '''
         
         kml_body = ""
         
-        for idx, row in polygons_df.iterrows():  # ← ИСПРАВЛЕНО: row вместо poly
+        # Полигоны
+        for idx, row in polygons_df.iterrows():
             coords = row['coordinates']
             if not coords or len(coords) < 3:
                 continue
             
-            # Формируем строку координат для KML (долгота, широта)
+            import re
+            match = re.search(r'(\d+)$', row['name'])
+            poly_number = int(match.group(1)) if match else 1
+            color_num = ((poly_number - 1) % 8) + 1
+            
             coord_string = ""
             for lat, lon in coords:
                 coord_string += f"{lon},{lat},0\n"
-            # Замыкаем полигон (первая точка в конце)
             first_lat, first_lon = coords[0]
             coord_string += f"{first_lon},{first_lat},0"
             
-            # Название и описание
-            name = row['name']
-            city = row['city']
-            center_lat = row['center_lat']
-            center_lon = row['center_lon']
-            
             kml_body += f'''
 <Placemark>
-    <name>{name}</name>
-    <description>
-        Город: {city}
-        Центр: {center_lat:.6f}, {center_lon:.6f}
-    </description>
-    <styleUrl>#polygonStyle</styleUrl>
-    <Polygon>
-        <outerBoundaryIs>
-            <LinearRing>
-                <coordinates>{coord_string}</coordinates>
-            </LinearRing>
-        </outerBoundaryIs>
-    </Polygon>
+    <name>{row['name']}</name>
+    <description>Город: {row['city']}</description>
+    <styleUrl>#polygon_{color_num}</styleUrl>
+    <Polygon><outerBoundaryIs><LinearRing><coordinates>{coord_string}</coordinates></LinearRing></outerBoundaryIs></Polygon>
 </Placemark>
 '''
         
-        kml_footer = '''
-</Document>
-</kml>'''
+        # Точки
+        for _, point in points_df.iterrows():
+            lat = point['Широта']
+            lon = point['Долгота']
+            fact = point['Факт']
+            polygon = str(point['Полигон'])
+            
+            import re
+            match = re.search(r'(\d+)', polygon)
+            if match:
+                color_num = ((int(match.group(1)) - 1) % 8) + 1
+            else:
+                color_num = 1
+            
+            style = f"point_fact1_{color_num}" if fact == 1 else f"point_fact0_{color_num}"
+            status = "✅ Посещено" if fact == 1 else "❌ Не посещено"
+            clean_polygon = polygon.replace(' (ближайший)', '')
+            
+            kml_body += f'''
+<Placemark>
+    <name>{point.get('Название_Точки', point['ID_Точки'])}</name>
+    <description>ID: {point['ID_Точки']}
+Адрес: {point.get('Адрес', '')}
+Полигон: {clean_polygon}
+Статус: {status}</description>
+    <styleUrl>#{style}</styleUrl>
+    <Point><coordinates>{lon},{lat},0</coordinates></Point>
+</Placemark>
+'''
         
-        return kml_header + kml_body + kml_footer
-    
+        kml_footer = '</Document>\n</kml>'
+        return kml_header + kml_styles + kml_body + kml_footer
     except Exception as e:
         st.error(f"❌ Ошибка создания KML: {str(e)}")
         return None
@@ -421,19 +453,22 @@ if st.session_state.result_df is not None:
         )
     
     with col2:
-        # Выгрузка полигонов в KML
+        # Выгрузка KML (полигоны + точки)
         if st.session_state.polygons_df is not None and not st.session_state.polygons_df.empty:
-            kml_data = export_polygons_to_kml(st.session_state.polygons_df)
-            if kml_data:
-                st.download_button(
-                    label="🗺️ Скачать полигоны (KML)",
-                    data=kml_data.encode('utf-8'),
-                    file_name=f"polygons_{datetime.now().strftime('%Y%m%d_%H%M')}.kml",
-                    mime="application/vnd.google-earth.kml+xml",
-                    use_container_width=True
-                )
+            if st.session_state.result_df is not None and not st.session_state.result_df.empty:
+                kml_data = export_to_kml(st.session_state.polygons_df, st.session_state.result_df)
+                if kml_data:
+                    st.download_button(
+                        label="🗺️ Скачать карту (KML)",
+                        data=kml_data.encode('utf-8'),
+                        file_name=f"map_{datetime.now().strftime('%Y%m%d_%H%M')}.kml",
+                        mime="application/vnd.google-earth.kml+xml",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("❌ Ошибка создания KML")
             else:
-                st.error("❌ Ошибка создания KML")
+                st.info("📌 Сначала рассчитайте план")
         else:
             st.info("📌 Загрузите полигоны для экспорта")
     
