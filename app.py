@@ -21,7 +21,9 @@ if 'points_df' not in st.session_state:
 if 'visits_df' not in st.session_state:
     st.session_state.visits_df = None
 if 'result_df' not in st.session_state:
-    st.session_state.result_df = None
+    st.session_state.result_df = None 
+if 'stats_df' not in st.session_state:
+    st.session_state.stats_df = None
 
 # ==============================================
 # ФУНКЦИИ
@@ -227,6 +229,75 @@ def assign_points_to_polygons(points_df, polygons_df):
     
     st.info(f"📌 Внутри полигонов: {assigned_cnt}, по расстоянию: {nearest_cnt}")
     return points_df
+    
+def export_polygons_to_kml(polygons_df, filename="polygons.kml"):
+    """Экспортирует полигоны в KML формат для Google Earth"""
+    try:
+        kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<name>Полигоны аудиторов</name>
+<style id="polygonStyle">
+    <LineStyle>
+        <color>ff0000ff</color>
+        <width>3</width>
+    </LineStyle>
+    <PolyStyle>
+        <color>400000ff</color>
+        <fill>1</fill>
+        <outline>1</outline>
+    </PolyStyle>
+</style>
+'''
+        
+        kml_body = ""
+        
+        for idx, row in polygons_df.iterrows():  # ← ИСПРАВЛЕНО: row вместо poly
+            coords = row['coordinates']
+            if not coords or len(coords) < 3:
+                continue
+            
+            # Формируем строку координат для KML (долгота, широта)
+            coord_string = ""
+            for lat, lon in coords:
+                coord_string += f"{lon},{lat},0\n"
+            # Замыкаем полигон (первая точка в конце)
+            first_lat, first_lon = coords[0]
+            coord_string += f"{first_lon},{first_lat},0"
+            
+            # Название и описание
+            name = row['name']
+            city = row['city']
+            center_lat = row['center_lat']
+            center_lon = row['center_lon']
+            
+            kml_body += f'''
+<Placemark>
+    <name>{name}</name>
+    <description>
+        Город: {city}
+        Центр: {center_lat:.6f}, {center_lon:.6f}
+    </description>
+    <styleUrl>#polygonStyle</styleUrl>
+    <Polygon>
+        <outerBoundaryIs>
+            <LinearRing>
+                <coordinates>{coord_string}</coordinates>
+            </LinearRing>
+        </outerBoundaryIs>
+    </Polygon>
+</Placemark>
+'''
+        
+        kml_footer = '''
+</Document>
+</kml>'''
+        
+        return kml_header + kml_body + kml_footer
+    
+    except Exception as e:
+        st.error(f"❌ Ошибка создания KML: {str(e)}")
+        return None
 
 # ==============================================
 # ИНТЕРФЕЙС
@@ -313,10 +384,7 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         
         st.success("✅ Расчет завершен!")
         
-        # Статистика
-        st.markdown("---")
-        st.subheader("📊 Статистика по полигонам")
-        
+        # Сохраняем статистику (без отображения)
         clean_poly = result_final['Полигон'].str.replace(r'\s*\(ближайший\)', '', regex=True)
         stats = result_final.groupby(clean_poly).agg(
             План=('ID_Точки', 'count'),
@@ -326,7 +394,7 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         stats['Разница'] = stats['План'] - stats['Факт']
         stats['Выполнение %'] = (stats['Факт'] / stats['План'] * 100).round(1).fillna(0).astype(str) + '%'
         
-        st.dataframe(stats, use_container_width=True, hide_index=True)
+        st.session_state.stats_df = stats
 
 # ==============================================
 # ВЫГРУЗКА
@@ -336,17 +404,47 @@ if st.session_state.result_df is not None:
     st.markdown("---")
     st.subheader("📤 Выгрузка")
     
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        st.session_state.result_df.to_excel(writer, sheet_name='План_посещений', index=False)
+    col1, col2 = st.columns(2)
     
-    st.download_button(
-        label="📥 Скачать Excel",
-        data=output.getvalue(),
-        file_name=f"plan_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+    with col1:
+        # Выгрузка Excel с точками
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            st.session_state.result_df.to_excel(writer, sheet_name='План_посещений', index=False)
+        
+        st.download_button(
+            label="📥 Скачать план посещений (Excel)",
+            data=output.getvalue(),
+            file_name=f"plan_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    
+    with col2:
+        # Выгрузка полигонов в KML
+        if st.session_state.polygons_df is not None and not st.session_state.polygons_df.empty:
+            kml_data = export_polygons_to_kml(st.session_state.polygons_df)
+            if kml_data:
+                st.download_button(
+                    label="🗺️ Скачать полигоны (KML)",
+                    data=kml_data.encode('utf-8'),
+                    file_name=f"polygons_{datetime.now().strftime('%Y%m%d_%H%M')}.kml",
+                    mime="application/vnd.google-earth.kml+xml",
+                    use_container_width=True
+                )
+            else:
+                st.error("❌ Ошибка создания KML")
+        else:
+            st.info("📌 Загрузите полигоны для экспорта")
+    
+    # Статистика
+    st.markdown("---")
+    st.subheader("📊 Статистика по полигонам")
+    
+    if st.session_state.stats_df is not None:
+        st.dataframe(st.session_state.stats_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Нажмите 'Рассчитать план' для отображения статистики")
     
     with st.expander("🔍 Предпросмотр"):
         st.dataframe(st.session_state.result_df.head(20), use_container_width=True)
