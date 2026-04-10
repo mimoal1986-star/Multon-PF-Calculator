@@ -114,7 +114,6 @@ def get_city_by_coords(lat, lon):
         return "Другой"
     
     for city, (center_lat, center_lon, radius_lat, radius_lon) in CITIES.items():
-        # Проверяем попадание в эллипс
         if abs(lat - center_lat) <= radius_lat and abs(lon - center_lon) <= radius_lon:
             return city
     
@@ -123,23 +122,21 @@ def get_city_by_coords(lat, lon):
 def load_polygons_from_csv(file):
     """Загрузка полигонов из CSV (автоопределение кодировки)"""
     try:
-        # Пробуем разные кодировки
         encodings = ['utf-8', 'cp1251', 'windows-1251', 'latin1']
         
         df = None
         for encoding in encodings:
             try:
-                file.seek(0)  # Возвращаемся в начало файла
+                file.seek(0)
                 df = pd.read_csv(file, encoding=encoding)
                 break
             except UnicodeDecodeError:
                 continue
         
         if df is None:
-            st.error("❌ Не удалось прочитать файл. Проверьте кодировку (должна быть UTF-8 или Windows-1251)")
+            st.error("❌ Не удалось прочитать файл")
             return None
         
-        # Ищем колонку с WKT
         wkt_col = None
         for col in df.columns:
             if 'wkt' in col.lower() or 'polygon' in col.lower():
@@ -169,7 +166,6 @@ def load_polygons_from_csv(file):
             st.error("❌ Не удалось распарсить полигоны")
             return None
         
-        # Нумеруем полигоны по городам
         city_counts = {}
         for p in polygons:
             city_counts[p['city']] = city_counts.get(p['city'], 0) + 1
@@ -229,48 +225,46 @@ def assign_points_to_polygons(points_df, polygons_df):
     
     st.info(f"📌 Внутри полигонов: {assigned_cnt}, по расстоянию: {nearest_cnt}")
     return points_df
-    
+
 def export_to_kml(polygons_df, points_df):
-    """Экспортирует полигоны и точки в один KML файл"""
+    """Экспортирует только точки в KML файл (без полигонов)"""
     try:
-        # Цвета для полигонов и булавок (номер -> цвета)
+        # Цвета для точек (номер полигона -> цвета)
         COLORS = {
-            1: {"fill": "3366cc", "line": "1a33cc", "icon0": "blue", "icon1": "darkblue", "name": "Синий"},
-            2: {"fill": "ff9933", "line": "cc7a00", "icon0": "orange", "icon1": "darkorange", "name": "Оранжевый"},
-            3: {"fill": "33cc33", "line": "28a028", "icon0": "grn", "icon1": "darkgreen", "name": "Зеленый"},
-            4: {"fill": "9933cc", "line": "7a28a0", "icon0": "purple", "icon1": "darkpurple", "name": "Фиолетовый"},
-            5: {"fill": "ffcc00", "line": "cca300", "icon0": "ylw", "icon1": "gold", "name": "Желтый"},
-            6: {"fill": "ff3333", "line": "cc2929", "icon0": "red", "icon1": "darkred", "name": "Красный"},
-            7: {"fill": "33cccc", "line": "29a3a3", "icon0": "ltblu", "icon1": "blue", "name": "Голубой"},
-            8: {"fill": "cc9966", "line": "a37a4d", "icon0": "pink", "icon1": "darkpink", "name": "Розовый"},
+            1: {"light": "ff6666", "dark": "cc3333", "name": "Красно-розовый"},
+            2: {"light": "66cc66", "dark": "339933", "name": "Зеленый"},
+            3: {"light": "6666ff", "dark": "3333cc", "name": "Синий"},
+            4: {"light": "ffcc66", "dark": "cc9933", "name": "Оранжевый"},
+            5: {"light": "cc66ff", "dark": "9933cc", "name": "Фиолетовый"},
+            6: {"light": "66cccc", "dark": "339999", "name": "Бирюзовый"},
+            7: {"light": "ff99cc", "dark": "cc6699", "name": "Розовый"},
+            8: {"light": "cccc66", "dark": "999933", "name": "Оливковый"},
         }
         
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
-<name>Полигоны и точки</name>
+<name>Точки по полигонам</name>
 '''
         
         kml_styles = ""
         for num, c in COLORS.items():
             kml_styles += f'''
-<Style id="polygon_{num}">
-    <LineStyle><color>ff{c["line"]}</color><width>3</width></LineStyle>
-    <PolyStyle><color>66{c["fill"]}</color><fill>1</fill><outline>1</outline></PolyStyle>
-</Style>
 <Style id="point_fact0_{num}">
     <IconStyle>
-        <scale>0.8</scale>
+        <color>cc{c["light"]}</color>
+        <scale>0.9</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/pushpin/{c["icon0"]}-pushpin.png</href>
+            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
         </Icon>
     </IconStyle>
 </Style>
 <Style id="point_fact1_{num}">
     <IconStyle>
-        <scale>0.8</scale>
+        <color>66{c["dark"]}</color>
+        <scale>0.9</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/pushpin/{c["icon1"]}-pushpin.png</href>
+            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
         </Icon>
     </IconStyle>
 </Style>
@@ -278,40 +272,12 @@ def export_to_kml(polygons_df, points_df):
         
         kml_body = ""
         
-        # Полигоны
-        for idx, row in polygons_df.iterrows():
-            coords = row['coordinates']
-            if not coords or len(coords) < 3:
-                continue
-            
-            import re
-            match = re.search(r'(\d+)$', row['name'])
-            poly_number = int(match.group(1)) if match else 1
-            color_num = ((poly_number - 1) % 8) + 1
-            
-            coord_string = ""
-            for lat, lon in coords:
-                coord_string += f"{lon},{lat},0\n"
-            first_lat, first_lon = coords[0]
-            coord_string += f"{first_lon},{first_lat},0"
-            
-            kml_body += f'''
-<Placemark>
-    <name>{row['name']}</name>
-    <description>Город: {row['city']}</description>
-    <styleUrl>#polygon_{color_num}</styleUrl>
-    <Polygon><outerBoundaryIs><LinearRing><coordinates>{coord_string}</coordinates></LinearRing></outerBoundaryIs></Polygon>
-</Placemark>
-'''
-        
-        # Точки
         for _, point in points_df.iterrows():
             lat = point['Широта']
             lon = point['Долгота']
             fact = point['Факт']
             polygon = str(point['Полигон'])
             
-            import re
             match = re.search(r'(\d+)', polygon)
             if match:
                 color_num = ((int(match.group(1)) - 1) % 8) + 1
@@ -321,6 +287,7 @@ def export_to_kml(polygons_df, points_df):
             style = f"point_fact{fact}_{color_num}"
             status = "✅ Посещено" if fact == 1 else "❌ Не посещено"
             clean_polygon = polygon.replace(' (ближайший)', '')
+            color_name = COLORS[color_num]["name"]
             
             kml_body += f'''
 <Placemark>
@@ -328,6 +295,7 @@ def export_to_kml(polygons_df, points_df):
     <description>ID: {point['ID_Точки']}
 Адрес: {point.get('Адрес', '')}
 Полигон: {clean_polygon}
+Цвет: {color_name}
 Статус: {status}</description>
     <styleUrl>#{style}</styleUrl>
     <Point><coordinates>{lon},{lat},0</coordinates></Point>
@@ -405,13 +373,11 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         st.stop()
     
     with st.spinner("🔄 Расчет..."):
-        # Привязка к полигонам
         result = assign_points_to_polygons(
             st.session_state.points_df.copy(),
             st.session_state.polygons_df
         )
         
-        # Расчет факта
         fact_dict = {}
         if st.session_state.visits_df is not None:
             for _, row in st.session_state.visits_df.iterrows():
@@ -419,13 +385,11 @@ if st.button("🚀 Рассчитать план", type="primary", use_container
         
         result['Факт'] = result['ID_Точки'].astype(str).str.strip().map(fact_dict).fillna(0).astype(int)
         
-        # Итоговый DataFrame
         result_final = result[['ID_Точки', 'Название_Точки', 'Адрес', 'Широта', 'Долгота', 'Город', 'Тип', 'Полигон', 'Факт']]
         st.session_state.result_df = result_final
         
         st.success("✅ Расчет завершен!")
         
-        # Сохраняем статистику (без отображения)
         clean_poly = result_final['Полигон'].str.replace(r'\s*\(ближайший\)', '', regex=True)
         stats = result_final.groupby(clean_poly).agg(
             План=('ID_Точки', 'count'),
@@ -448,7 +412,6 @@ if st.session_state.result_df is not None:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Выгрузка Excel с точками
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             st.session_state.result_df.to_excel(writer, sheet_name='План_посещений', index=False)
@@ -462,7 +425,6 @@ if st.session_state.result_df is not None:
         )
     
     with col2:
-        # Выгрузка KML (полигоны + точки)
         if st.session_state.polygons_df is not None and not st.session_state.polygons_df.empty:
             if st.session_state.result_df is not None and not st.session_state.result_df.empty:
                 kml_data = export_to_kml(st.session_state.polygons_df, st.session_state.result_df)
@@ -481,7 +443,6 @@ if st.session_state.result_df is not None:
         else:
             st.info("📌 Загрузите полигоны для экспорта")
     
-    # Статистика
     st.markdown("---")
     st.subheader("📊 Статистика по полигонам")
     
