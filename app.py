@@ -101,10 +101,23 @@ def get_city_by_coords(lat, lon):
     return "Другой"
 
 def load_polygons_from_csv(file):
-    """Загрузка полигонов из CSV"""
+    """Загрузка полигонов из CSV (автоопределение кодировки)"""
     try:
-        # Читаем CSV через pandas (проще и надежнее)
-        df = pd.read_csv(file, encoding='utf-8')
+        # Пробуем разные кодировки
+        encodings = ['utf-8', 'cp1251', 'windows-1251', 'latin1']
+        
+        df = None
+        for encoding in encodings:
+            try:
+                file.seek(0)  # Возвращаемся в начало файла
+                df = pd.read_csv(file, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if df is None:
+            st.error("❌ Не удалось прочитать файл. Проверьте кодировку (должна быть UTF-8 или Windows-1251)")
+            return None
         
         # Ищем колонку с WKT
         wkt_col = None
