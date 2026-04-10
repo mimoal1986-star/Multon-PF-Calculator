@@ -260,28 +260,21 @@ def export_to_kml(polygons_df, points_df):
 <Style id="point_fact0_{num}">
     <IconStyle>
         <color>cc{colors["fill"]}</color>
-        <scale>0.6</scale>
+        <scale>1.0</scale>
         <Icon>
             <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
         </Icon>
     </IconStyle>
-    <LabelStyle>
-        <scale>0</scale>
-    </LabelStyle>
 </Style>
 <Style id="point_fact1_{num}">
     <IconStyle>
         <color>33{colors["fill"]}</color>
-        <scale>0.6</scale>
+        <scale>1.0</scale>
         <Icon>
             <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
         </Icon>
     </IconStyle>
-    <LabelStyle>
-        <scale>0</scale>
-    </LabelStyle>
 </Style>
-'''
         
         kml_body = ""
         
