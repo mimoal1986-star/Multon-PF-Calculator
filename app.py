@@ -225,20 +225,21 @@ def assign_points_to_polygons(points_df, polygons_df):
     
     st.info(f"📌 Внутри полигонов: {assigned_cnt}, по расстоянию: {nearest_cnt}")
     return points_df
-
+    
 def export_to_kml(polygons_df, points_df):
     """Экспортирует только точки в KML файл (без полигонов)"""
     try:
-        # Цвета для точек (номер полигона -> цвета)
+        # Цвета для точек в формате KML (AABBGGRR)
+        # AA = прозрачность: CC=80% (светлый), 66=60% (темный)
         COLORS = {
-            1: {"light": "ff6666", "dark": "cc3333", "name": "Красно-розовый"},
-            2: {"light": "66cc66", "dark": "339933", "name": "Зеленый"},
-            3: {"light": "6666ff", "dark": "3333cc", "name": "Синий"},
-            4: {"light": "ffcc66", "dark": "cc9933", "name": "Оранжевый"},
-            5: {"light": "cc66ff", "dark": "9933cc", "name": "Фиолетовый"},
-            6: {"light": "66cccc", "dark": "339999", "name": "Бирюзовый"},
-            7: {"light": "ff99cc", "dark": "cc6699", "name": "Розовый"},
-            8: {"light": "cccc66", "dark": "999933", "name": "Оливковый"},
+            1: {"light": "cc66ff66", "dark": "6633cc33", "name": "Красно-розовый"},
+            2: {"light": "cc66cc66", "dark": "66339933", "name": "Зеленый"},
+            3: {"light": "ccff6666", "dark": "66cc3333", "name": "Синий"},
+            4: {"light": "cc66ccff", "dark": "663399cc", "name": "Оранжевый"},
+            5: {"light": "ccff66cc", "dark": "66cc3399", "name": "Фиолетовый"},
+            6: {"light": "cccccc66", "dark": "66999933", "name": "Бирюзовый"},
+            7: {"light": "cccc99ff", "dark": "669966cc", "name": "Розовый"},
+            8: {"light": "cc66cccc", "dark": "66339999", "name": "Оливковый"},
         }
         
         kml_header = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -249,22 +250,26 @@ def export_to_kml(polygons_df, points_df):
         
         kml_styles = ""
         for num, c in COLORS.items():
+            # Светлая точка (факт=0)
             kml_styles += f'''
 <Style id="point_fact0_{num}">
     <IconStyle>
-        <color>cc{c["light"]}</color>
+        <color>{c["light"]}</color>
         <scale>0.9</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
         </Icon>
     </IconStyle>
 </Style>
+'''
+            # Темная точка (факт=1)
+            kml_styles += f'''
 <Style id="point_fact1_{num}">
     <IconStyle>
-        <color>66{c["dark"]}</color>
+        <color>{c["dark"]}</color>
         <scale>0.9</scale>
         <Icon>
-            <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
         </Icon>
     </IconStyle>
 </Style>
@@ -278,6 +283,7 @@ def export_to_kml(polygons_df, points_df):
             fact = point['Факт']
             polygon = str(point['Полигон'])
             
+            import re
             match = re.search(r'(\d+)', polygon)
             if match:
                 color_num = ((int(match.group(1)) - 1) % 8) + 1
